@@ -1,5 +1,9 @@
 import { Jimp, rgbaToInt } from 'jimp';
 
+// Set to true to bypass Jimp and just pass through original image
+// TESTING: enabled to check if PDF embedding works without Jimp processing
+const BYPASS_PROCESSING = true;
+
 /**
  * Convert photo to coloring book page
  * Uses JPEG to avoid alpha channel issues in PDF
@@ -10,16 +14,35 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     
     // Log input format
     const header = imageBuffer.slice(0, 8);
-    console.log(`Input header: ${Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+    const headerHex = Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    console.log(`Input header: ${headerHex}`);
+    
+    // Check if it's already a JPEG
+    const isJpeg = header[0] === 0xff && header[1] === 0xd8;
+    console.log(`Input is JPEG: ${isJpeg}`);
+    
+    // BYPASS MODE: just return original if it's already JPEG
+    if (BYPASS_PROCESSING && isJpeg) {
+      console.log('BYPASS MODE: returning original JPEG');
+      return imageBuffer;
+    }
     
     let image;
     try {
       image = await Jimp.read(imageBuffer);
+      console.log(`Jimp loaded image: ${image.width}x${image.height}`);
     } catch (readError) {
-      console.error('Failed to read image, creating placeholder:', readError);
-      // Create a placeholder image if we can't read the input
+      console.error('Failed to read image with Jimp:', readError);
+      
+      // If input is JPEG and Jimp fails, return original
+      if (isJpeg) {
+        console.log('Jimp failed but input is JPEG, returning original');
+        return imageBuffer;
+      }
+      
+      // Create a placeholder image
+      console.log('Creating placeholder image');
       image = new Jimp({ width: 400, height: 300, color: 0xccccccff });
-      // Draw an X to indicate error
       for (let i = 0; i < 300; i++) {
         const x1 = Math.floor(i * 400 / 300);
         const x2 = 400 - x1;
@@ -27,8 +50,6 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
         if (x2 < 400 && x2 >= 0) image.setPixelColor(rgbaToInt(100, 100, 100, 255), x2, i);
       }
     }
-    
-    console.log(`Image loaded: ${image.width}x${image.height}`);
     
     // Resize if needed
     const width = image.width;
@@ -57,6 +78,8 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     console.log(`Output: ${buffer.length} bytes, valid JPEG: ${isValidJpeg}`);
     
     if (!isValidJpeg) {
+      console.error('Generated invalid JPEG, returning original if possible');
+      if (isJpeg) return imageBuffer;
       throw new Error('Generated invalid JPEG');
     }
     
