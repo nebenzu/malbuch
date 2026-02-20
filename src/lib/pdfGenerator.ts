@@ -67,7 +67,15 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
     const imgWidth = pageWidth - margin * 2;
     const imgHeight = pageHeight - margin * 2 - 20; // Leave space for color palette
     
-    doc.addImage(imageDataUrl, 'PNG', margin, margin, imgWidth, imgHeight, undefined, 'FAST');
+    try {
+      doc.addImage(imageDataUrl, 'PNG', margin, margin, imgWidth, imgHeight, undefined, 'FAST');
+    } catch (imgError) {
+      console.error('Failed to add image to PDF:', imgError);
+      // Add placeholder text if image fails
+      doc.setFontSize(14);
+      doc.setTextColor(200, 100, 100);
+      doc.text('Bild konnte nicht geladen werden', pageWidth / 2, pageHeight / 2, { align: 'center' });
+    }
     
     // For paint-by-numbers, add color palette at bottom
     if (page.type === 'paint-by-numbers' && page.colorPalette) {
@@ -107,7 +115,7 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
   doc.setFontSize(14);
   doc.setTextColor(120, 120, 120);
   doc.text(`Erstellt für ${name}`, pageWidth / 2, pageHeight / 2, { align: 'center' });
-  doc.text('mit ❤️ von malbuch.app', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
+  doc.text('mit Liebe von malbuch.app', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
   
   // Return as buffer
   const pdfArrayBuffer = doc.output('arraybuffer');

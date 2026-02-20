@@ -20,24 +20,33 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     // Convert to grayscale
     image.greyscale();
     
-    // Increase contrast
-    image.contrast(0.4);
+    // Increase contrast for better line detection
+    image.contrast(0.3);
     
-    // Apply edge detection effect using convolution
-    image.convolute([
+    // Simple edge detection using Laplacian kernel
+    const kernel = [
       [-1, -1, -1],
       [-1,  8, -1],
       [-1, -1, -1]
-    ]);
+    ];
     
-    // Invert for coloring book style (dark lines on white)
+    // Apply convolution for edge detection
+    image.convolute(kernel);
+    
+    // Invert for coloring book style (dark lines on white background)
     image.invert();
     
-    // Increase contrast again to make lines clearer
-    image.contrast(0.5);
+    // Final contrast boost to make lines clearer
+    image.contrast(0.4);
     
-    // Convert to PNG buffer
+    // Get PNG buffer
     const buffer = await image.getBuffer('image/png');
+    
+    if (!buffer || buffer.length < 100) {
+      throw new Error('Generated image buffer is too small or empty');
+    }
+    
+    console.log(`Coloring page generated: ${buffer.length} bytes`);
     return buffer;
   } catch (error) {
     console.error('photoToColoringPage error:', error);
@@ -71,9 +80,14 @@ export async function photoToPaintByNumbers(
     // Get the buffer
     const buffer = await image.getBuffer('image/png');
     
+    if (!buffer || buffer.length < 100) {
+      throw new Error('Generated paint-by-numbers buffer is too small or empty');
+    }
+    
     // Extract dominant colors for the palette
     const palette = extractPalette(image, numColors);
     
+    console.log(`Paint-by-numbers generated: ${buffer.length} bytes, ${palette.length} colors`);
     return { image: buffer, palette };
   } catch (error) {
     console.error('photoToPaintByNumbers error:', error);
@@ -95,13 +109,17 @@ function extractPalette(image: any, numColors: number): string[] {
   
   for (let y = 0; y < height; y += step) {
     for (let x = 0; x < width; x += step) {
-      const color = image.getPixelColor(x, y);
-      // Extract RGB from color int
-      const r = (color >> 24) & 0xFF;
-      const g = (color >> 16) & 0xFF;
-      const b = (color >> 8) & 0xFF;
-      const hex = rgbToHex(r, g, b);
-      colorCounts.set(hex, (colorCounts.get(hex) || 0) + 1);
+      try {
+        const color = image.getPixelColor(x, y);
+        // Extract RGB from color int (RGBA format: RRGGBBAA)
+        const r = (color >> 24) & 0xFF;
+        const g = (color >> 16) & 0xFF;
+        const b = (color >> 8) & 0xFF;
+        const hex = rgbToHex(r, g, b);
+        colorCounts.set(hex, (colorCounts.get(hex) || 0) + 1);
+      } catch {
+        // Skip invalid pixels
+      }
     }
   }
   

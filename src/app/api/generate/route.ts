@@ -25,11 +25,19 @@ export async function POST(request: NextRequest) {
 
     const pages: BookPage[] = [];
 
-    for (const photo of photos) {
+    console.log(`Processing ${photos.length} photos for ${name}, type: ${bookType}`);
+
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
+      console.log(`Photo ${i + 1}: ${photo.name}, size: ${photo.size} bytes`);
+      
       const buffer = Buffer.from(await photo.arrayBuffer());
+      console.log(`Buffer created: ${buffer.length} bytes`);
 
       if (bookType === 'coloring' || bookType === 'both') {
+        console.log('Generating coloring page...');
         const coloringPage = await photoToColoringPage(buffer);
+        console.log(`Coloring page result: ${coloringPage.length} bytes`);
         pages.push({
           image: coloringPage,
           type: 'coloring',
@@ -37,7 +45,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (bookType === 'paint-by-numbers' || bookType === 'both') {
+        console.log('Generating paint-by-numbers...');
         const { image, palette } = await photoToPaintByNumbers(buffer, 12);
+        console.log(`Paint-by-numbers result: ${image.length} bytes, palette: ${palette.join(', ')}`);
         pages.push({
           image,
           type: 'paint-by-numbers',
@@ -45,6 +55,8 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+    
+    console.log(`Total pages to generate: ${pages.length}`);
 
     const pdfBuffer = await generateBook({
       name,
