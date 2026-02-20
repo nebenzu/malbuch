@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     console.log(`Debug: Processed ${processed.length} bytes`);
 
     // Return the processed JPEG directly
-    return new NextResponse(processed, {
+    return new NextResponse(new Uint8Array(processed), {
       headers: {
         'Content-Type': 'image/jpeg',
         'Content-Disposition': 'inline; filename="debug_processed.jpg"',
