@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { processImageToColoringPage, processImageToPaintByNumbers } from '@/lib/clientImageProcessor';
 
 type BookType = 'coloring' | 'paint-by-numbers' | 'both';
 
@@ -44,6 +45,8 @@ export default function Home() {
     });
   };
 
+  const [processingStatus, setProcessingStatus] = useState('');
+
   const handleGenerate = async () => {
     if (!name.trim()) {
       setError('Bitte gib einen Namen ein');
@@ -56,12 +59,36 @@ export default function Home() {
 
     setLoading(true);
     setError('');
+    setProcessingStatus('');
 
     try {
+      // Process images client-side
+      const processedPhotos: Blob[] = [];
+      
+      for (let i = 0; i < photos.length; i++) {
+        setProcessingStatus(`Verarbeite Bild ${i + 1} von ${photos.length}...`);
+        
+        if (bookType === 'coloring' || bookType === 'both') {
+          const coloringBlob = await processImageToColoringPage(photos[i]);
+          processedPhotos.push(coloringBlob);
+        }
+        
+        if (bookType === 'paint-by-numbers' || bookType === 'both') {
+          const pbnBlob = await processImageToPaintByNumbers(photos[i], 12);
+          processedPhotos.push(pbnBlob);
+        }
+      }
+      
+      setProcessingStatus('Erstelle PDF...');
+      
+      // Send processed images to server
       const formData = new FormData();
       formData.append('name', name);
       formData.append('type', bookType);
-      photos.forEach(photo => formData.append('photos', photo));
+      formData.append('preprocessed', 'true'); // Flag that images are already processed
+      processedPhotos.forEach((blob, idx) => {
+        formData.append('photos', blob, `processed_${idx}.jpg`);
+      });
 
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -83,9 +110,12 @@ export default function Home() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      
+      setProcessingStatus('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
       setError(message);
+      setProcessingStatus('');
     } finally {
       setLoading(false);
     }
@@ -225,7 +255,7 @@ export default function Home() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Wird erstellt...
+                {processingStatus || 'Wird erstellt...'}
               </span>
             ) : (
               `🎨 Malbuch erstellen (${photos.length} ${photos.length === 1 ? 'Foto' : 'Fotos'})`

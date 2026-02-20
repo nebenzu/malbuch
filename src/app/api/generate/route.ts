@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const name = formData.get('name') as string;
     const bookType = formData.get('type') as 'coloring' | 'paint-by-numbers' | 'both';
+    const preprocessed = formData.get('preprocessed') === 'true';
     const photos = formData.getAll('photos') as File[];
 
     if (!name || !photos.length) {
@@ -25,39 +26,59 @@ export async function POST(request: NextRequest) {
 
     const pages: BookPage[] = [];
 
-    console.log(`Processing ${photos.length} photos for ${name}, type: ${bookType}`);
+    console.log(`Processing ${photos.length} photos for ${name}, type: ${bookType}, preprocessed: ${preprocessed}`);
 
-    for (let i = 0; i < photos.length; i++) {
-      const photo = photos[i];
-      console.log(`Photo ${i + 1}: ${photo.name}, type: ${photo.type}, size: ${photo.size} bytes`);
-      
-      const arrayBuffer = await photo.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      console.log(`Buffer created: ${buffer.length} bytes`);
-      
-      // Log first bytes to identify format
-      const header = buffer.slice(0, 8);
-      console.log(`File header: ${Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
-
-      if (bookType === 'coloring' || bookType === 'both') {
-        console.log('Generating coloring page...');
-        const coloringPage = await photoToColoringPage(buffer);
-        console.log(`Coloring page result: ${coloringPage.length} bytes`);
+    if (preprocessed) {
+      // Images already processed client-side, just use them directly
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        console.log(`Preprocessed photo ${i + 1}: ${photo.name}, size: ${photo.size} bytes`);
+        
+        const buffer = Buffer.from(await photo.arrayBuffer());
+        
+        // Determine type based on position (coloring pages come first)
+        const isColoring = bookType === 'coloring' || 
+          (bookType === 'both' && i % 2 === 0);
+        
         pages.push({
-          image: coloringPage,
-          type: 'coloring',
+          image: buffer,
+          type: isColoring ? 'coloring' : 'paint-by-numbers',
         });
       }
+    } else {
+      // Server-side processing (fallback)
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        console.log(`Photo ${i + 1}: ${photo.name}, type: ${photo.type}, size: ${photo.size} bytes`);
+        
+        const arrayBuffer = await photo.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        console.log(`Buffer created: ${buffer.length} bytes`);
+        
+        // Log first bytes to identify format
+        const header = buffer.slice(0, 8);
+        console.log(`File header: ${Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
-      if (bookType === 'paint-by-numbers' || bookType === 'both') {
-        console.log('Generating paint-by-numbers...');
-        const { image, palette } = await photoToPaintByNumbers(buffer, 12);
-        console.log(`Paint-by-numbers result: ${image.length} bytes, palette: ${palette.join(', ')}`);
-        pages.push({
-          image,
-          type: 'paint-by-numbers',
-          colorPalette: palette,
-        });
+        if (bookType === 'coloring' || bookType === 'both') {
+          console.log('Generating coloring page...');
+          const coloringPage = await photoToColoringPage(buffer);
+          console.log(`Coloring page result: ${coloringPage.length} bytes`);
+          pages.push({
+            image: coloringPage,
+            type: 'coloring',
+          });
+        }
+
+        if (bookType === 'paint-by-numbers' || bookType === 'both') {
+          console.log('Generating paint-by-numbers...');
+          const { image, palette } = await photoToPaintByNumbers(buffer, 12);
+          console.log(`Paint-by-numbers result: ${image.length} bytes, palette: ${palette.join(', ')}`);
+          pages.push({
+            image,
+            type: 'paint-by-numbers',
+            colorPalette: palette,
+          });
+        }
       }
     }
     
