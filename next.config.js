@@ -1,12 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['sharp'],
-  },
-  // Increase function timeout for image processing
-  serverRuntimeConfig: {
-    maxDuration: 60,
-  },
+  // No special config needed for Jimp (pure JS)
 };
 
 module.exports = nextConfig;
