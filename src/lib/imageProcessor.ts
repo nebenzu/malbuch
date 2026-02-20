@@ -1,4 +1,4 @@
-import { Jimp } from 'jimp';
+import { Jimp, rgbaToInt } from 'jimp';
 
 /**
  * Convert photo to coloring book page
@@ -8,7 +8,26 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
   try {
     console.log(`Input buffer: ${imageBuffer.length} bytes`);
     
-    const image = await Jimp.read(imageBuffer);
+    // Log input format
+    const header = imageBuffer.slice(0, 8);
+    console.log(`Input header: ${Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+    
+    let image;
+    try {
+      image = await Jimp.read(imageBuffer);
+    } catch (readError) {
+      console.error('Failed to read image, creating placeholder:', readError);
+      // Create a placeholder image if we can't read the input
+      image = new Jimp({ width: 400, height: 300, color: 0xccccccff });
+      // Draw an X to indicate error
+      for (let i = 0; i < 300; i++) {
+        const x1 = Math.floor(i * 400 / 300);
+        const x2 = 400 - x1;
+        if (x1 < 400 && x1 >= 0) image.setPixelColor(rgbaToInt(100, 100, 100, 255), x1, i);
+        if (x2 < 400 && x2 >= 0) image.setPixelColor(rgbaToInt(100, 100, 100, 255), x2, i);
+      }
+    }
+    
     console.log(`Image loaded: ${image.width}x${image.height}`);
     
     // Resize if needed
@@ -36,6 +55,10 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     // Verify it's a valid JPEG
     const isValidJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
     console.log(`Output: ${buffer.length} bytes, valid JPEG: ${isValidJpeg}`);
+    
+    if (!isValidJpeg) {
+      throw new Error('Generated invalid JPEG');
+    }
     
     return buffer;
   } catch (error) {

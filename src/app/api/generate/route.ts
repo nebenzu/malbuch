@@ -29,10 +29,15 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
-      console.log(`Photo ${i + 1}: ${photo.name}, size: ${photo.size} bytes`);
+      console.log(`Photo ${i + 1}: ${photo.name}, type: ${photo.type}, size: ${photo.size} bytes`);
       
-      const buffer = Buffer.from(await photo.arrayBuffer());
+      const arrayBuffer = await photo.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
       console.log(`Buffer created: ${buffer.length} bytes`);
+      
+      // Log first bytes to identify format
+      const header = buffer.slice(0, 8);
+      console.log(`File header: ${Array.from(header).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
       if (bookType === 'coloring' || bookType === 'both') {
         console.log('Generating coloring page...');
