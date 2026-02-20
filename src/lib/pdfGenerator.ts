@@ -36,7 +36,9 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
   doc.setFontSize(36);
   doc.setTextColor(60, 60, 60);
   
-  const bookTitle = title || `${name}'s Malbuch`;
+  // Sanitize name to ASCII only
+  const safeName = name.replace(/[^\x20-\x7E]/g, '');
+  const bookTitle = title || (safeName + "'s Malbuch");
   doc.text(bookTitle, pageWidth / 2, pageHeight / 3, { align: 'center' });
   
   doc.setFontSize(18);
@@ -114,7 +116,7 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(14);
   doc.setTextColor(120, 120, 120);
-  doc.text(`Erstellt fuer ${name}`, pageWidth / 2, pageHeight / 2, { align: 'center' });
+  doc.text('Erstellt fuer ' + safeName, pageWidth / 2, pageHeight / 2, { align: 'center' });
   doc.text('malbuch.app', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
   
   // Return as buffer
