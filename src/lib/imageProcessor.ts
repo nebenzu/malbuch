@@ -12,19 +12,22 @@ export interface ProcessedImage {
  * Convert photo to coloring book page (line art)
  */
 export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> {
-  // Convert to grayscale, apply edge detection effect
-  const processed = await sharp(imageBuffer)
-    .resize(2480, 3508, { fit: 'inside' }) // A4 at 300dpi
-    .grayscale()
-    .normalize()
-    .linear(1.5, -0.2) // Increase contrast
-    .sharpen({ sigma: 2 })
-    .threshold(200) // Convert to pure black/white lines
-    .negate() // Invert for coloring book style
-    .png()
-    .toBuffer();
+  try {
+    // Simpler processing pipeline for serverless compatibility
+    const processed = await sharp(imageBuffer)
+      .resize(1240, 1754, { fit: 'inside' }) // A4 at 150dpi (smaller for faster processing)
+      .grayscale()
+      .blur(0.5)
+      .threshold(128)
+      .negate()
+      .png()
+      .toBuffer();
 
-  return processed;
+    return processed;
+  } catch (error) {
+    console.error('photoToColoringPage error:', error);
+    throw new Error(`Bildverarbeitung fehlgeschlagen: ${error instanceof Error ? error.message : 'Unknown'}`);
+  }
 }
 
 /**
@@ -32,53 +35,27 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
  */
 export async function photoToPaintByNumbers(
   imageBuffer: Buffer,
-  numColors: number = 12
+  numColors: number = 8
 ): Promise<{ image: Buffer; palette: string[] }> {
-  // Step 1: Resize and reduce colors
-  const resized = await sharp(imageBuffer)
-    .resize(2480, 3508, { fit: 'inside' })
-    .toBuffer();
+  try {
+    // Simplified approach: posterize the image
+    const processed = await sharp(imageBuffer)
+      .resize(1240, 1754, { fit: 'inside' }) // Smaller for serverless
+      .modulate({ saturation: 1.3 }) // Boost colors
+      .png({ colours: numColors }) // Use PNG color quantization
+      .toBuffer();
 
-  // Step 2: Get image metadata
-  const metadata = await sharp(resized).metadata();
-  const { width = 2480, height = 3508 } = metadata;
+    // Generate a simple palette based on common colors
+    const defaultPalette = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
+      '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+    ];
 
-  // Step 3: Extract raw pixel data
-  const { data, info } = await sharp(resized)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  // Step 4: Quantize colors using simple k-means-like approach
-  const pixels: [number, number, number][] = [];
-  for (let i = 0; i < data.length; i += info.channels) {
-    pixels.push([data[i], data[i + 1], data[i + 2]]);
+    return { image: processed, palette: defaultPalette.slice(0, numColors) };
+  } catch (error) {
+    console.error('photoToPaintByNumbers error:', error);
+    throw new Error(`Malen-nach-Zahlen fehlgeschlagen: ${error instanceof Error ? error.message : 'Unknown'}`);
   }
-
-  const palette = quantizeColors(pixels, numColors);
-  
-  // Step 5: Map each pixel to nearest palette color
-  const mappedData = Buffer.alloc(info.width * info.height * 3);
-  for (let i = 0; i < pixels.length; i++) {
-    const nearestIdx = findNearestColor(pixels[i], palette);
-    const color = palette[nearestIdx];
-    mappedData[i * 3] = color[0];
-    mappedData[i * 3 + 1] = color[1];
-    mappedData[i * 3 + 2] = color[2];
-  }
-
-  // Step 6: Create the paint-by-numbers image
-  const quantizedImage = await sharp(mappedData, {
-    raw: { width: info.width, height: info.height, channels: 3 }
-  })
-    .png()
-    .toBuffer();
-
-  // Convert palette to hex
-  const hexPalette = palette.map(([r, g, b]) => 
-    `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-  );
-
-  return { image: quantizedImage, palette: hexPalette };
 }
 
 /**

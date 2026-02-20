@@ -69,7 +69,8 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error('Generation failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 
       // Download PDF
@@ -83,7 +84,8 @@ export default function Home() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError('Fehler beim Erstellen. Bitte versuche es erneut.');
+      const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+      setError(message);
     } finally {
       setLoading(false);
     }
