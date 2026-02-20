@@ -1,36 +1,37 @@
-import sharp from 'sharp';
+import { Jimp } from 'jimp';
 
 /**
- * Convert photo to coloring book page (line art)
- * Uses edge detection via Sharp
+ * Convert photo to coloring book page
+ * Simple approach: grayscale + posterize + high contrast
  */
 export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> {
   try {
-    // Step 1: Resize and convert to grayscale
-    const grayscale = await sharp(imageBuffer)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .grayscale()
-      .toBuffer();
+    const image = await Jimp.read(imageBuffer);
     
-    // Step 2: Create edge detection using Laplacian kernel
-    const edges = await sharp(grayscale)
-      .convolve({
-        width: 3,
-        height: 3,
-        kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1],
-      })
-      .toBuffer();
+    // Resize
+    const width = image.width;
+    const height = image.height;
+    const maxDim = 800;
     
-    // Step 3: Negate (invert) and increase contrast for coloring book look
-    const result = await sharp(edges)
-      .negate()
-      .normalize() // Auto-levels to use full range
-      .linear(1.5, 0) // Boost contrast
-      .png()
-      .toBuffer();
+    if (width > maxDim || height > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      image.resize({ w: Math.round(width * scale), h: Math.round(height * scale) });
+    }
     
-    console.log(`Coloring page generated: ${result.length} bytes`);
-    return result;
+    // Convert to grayscale
+    image.greyscale();
+    
+    // Reduce to very few tones (creates outline-like effect)
+    image.posterize(3);
+    
+    // Max out contrast to push toward black/white
+    image.contrast(1);
+    
+    // Get PNG buffer
+    const buffer = await image.getBuffer('image/png');
+    
+    console.log(`Coloring page generated: ${buffer.length} bytes`);
+    return buffer;
   } catch (error) {
     console.error('photoToColoringPage error:', error);
     throw new Error(`Bildverarbeitung fehlgeschlagen: ${error instanceof Error ? error.message : 'Unknown'}`);
@@ -39,29 +40,35 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
 
 /**
  * Convert photo to paint-by-numbers style
- * Uses color quantization
  */
 export async function photoToPaintByNumbers(
   imageBuffer: Buffer,
   numColors: number = 8
 ): Promise<{ image: Buffer; palette: string[] }> {
   try {
-    // Resize and reduce colors
-    const result = await sharp(imageBuffer)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .png({ colours: numColors, dither: 0 }) // Reduce to N colors, no dithering
-      .toBuffer();
+    const image = await Jimp.read(imageBuffer);
     
-    // Extract palette from the image
-    const { dominant } = await sharp(imageBuffer)
-      .resize(100, 100, { fit: 'inside' })
-      .stats();
+    // Resize
+    const width = image.width;
+    const height = image.height;
+    const maxDim = 800;
     
-    // Get palette by sampling the quantized image
-    const palette = await extractPaletteFromBuffer(result, numColors);
+    if (width > maxDim || height > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      image.resize({ w: Math.round(width * scale), h: Math.round(height * scale) });
+    }
     
-    console.log(`Paint-by-numbers generated: ${result.length} bytes`);
-    return { image: result, palette };
+    // Posterize to reduce colors
+    image.posterize(numColors);
+    
+    // Get the buffer
+    const buffer = await image.getBuffer('image/png');
+    
+    // Extract dominant colors for the palette
+    const palette = extractPalette(image, numColors);
+    
+    console.log(`Paint-by-numbers generated: ${buffer.length} bytes, ${palette.length} colors`);
+    return { image: buffer, palette };
   } catch (error) {
     console.error('photoToPaintByNumbers error:', error);
     throw new Error(`Malen-nach-Zahlen fehlgeschlagen: ${error instanceof Error ? error.message : 'Unknown'}`);
@@ -69,44 +76,44 @@ export async function photoToPaintByNumbers(
 }
 
 /**
- * Extract color palette from PNG buffer
+ * Extract color palette from posterized image
  */
-async function extractPaletteFromBuffer(buffer: Buffer, numColors: number): Promise<string[]> {
-  try {
-    const { channels, width, height } = await sharp(buffer).metadata();
-    const { data } = await sharp(buffer)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    const colorCounts: Map<string, number> = new Map();
-    const bytesPerPixel = channels || 3;
-    const step = Math.max(1, Math.floor(Math.sqrt((width! * height!) / 500)));
-    
-    for (let y = 0; y < height!; y += step) {
-      for (let x = 0; x < width!; x += step) {
-        const idx = (y * width! + x) * bytesPerPixel;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractPalette(image: any, numColors: number): string[] {
+  const colorCounts: Map<string, number> = new Map();
+  
+  const width = image.width;
+  const height = image.height;
+  const step = Math.max(1, Math.floor(Math.sqrt((width * height) / 1000)));
+  
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      try {
+        const color = image.getPixelColor(x, y);
+        const r = (color >> 24) & 0xFF;
+        const g = (color >> 16) & 0xFF;
+        const b = (color >> 8) & 0xFF;
+        const hex = rgbToHex(r, g, b);
         colorCounts.set(hex, (colorCounts.get(hex) || 0) + 1);
+      } catch {
+        // Skip
       }
     }
-    
-    const sorted = Array.from(colorCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, numColors)
-      .map(([hex]) => hex);
-    
-    // Pad with defaults if needed
-    const defaults = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
-    while (sorted.length < numColors) {
-      sorted.push(defaults[sorted.length % defaults.length]);
-    }
-    
-    return sorted;
-  } catch (error) {
-    console.error('extractPaletteFromBuffer error:', error);
-    return ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
   }
+  
+  const sorted = Array.from(colorCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, numColors)
+    .map(([hex]) => hex);
+  
+  const defaults = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+  while (sorted.length < numColors) {
+    sorted.push(defaults[sorted.length % defaults.length]);
+  }
+  
+  return sorted;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
