@@ -20,8 +20,8 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     // Convert to grayscale
     image.greyscale();
     
-    // Increase contrast for better line detection
-    image.contrast(0.3);
+    // Boost contrast before edge detection
+    image.contrast(0.5);
     
     // Simple edge detection using Laplacian kernel
     const kernel = [
@@ -36,8 +36,23 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     // Invert for coloring book style (dark lines on white background)
     image.invert();
     
-    // Final contrast boost to make lines clearer
-    image.contrast(0.4);
+    // Strong contrast boost to make lines clearly visible
+    image.contrast(0.8);
+    
+    // Threshold to make it more black & white (coloring book style)
+    // Pixels above threshold become white, below become darker
+    const w = image.width;
+    const h = image.height;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const color = image.getPixelColor(x, y);
+        const gray = (color >> 24) & 0xFF;
+        // If pixel is light enough, make it white; otherwise make it black
+        const newGray = gray > 200 ? 255 : Math.max(0, gray - 50);
+        const newColor = (newGray << 24) | (newGray << 16) | (newGray << 8) | 0xFF;
+        image.setPixelColor(newColor, x, y);
+      }
+    }
     
     // Get PNG buffer
     const buffer = await image.getBuffer('image/png');

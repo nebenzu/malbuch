@@ -114,8 +114,8 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(14);
   doc.setTextColor(120, 120, 120);
-  doc.text(`Erstellt für ${name}`, pageWidth / 2, pageHeight / 2, { align: 'center' });
-  doc.text('mit Liebe von malbuch.app', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
+  doc.text(`Erstellt fuer ${name}`, pageWidth / 2, pageHeight / 2, { align: 'center' });
+  doc.text('malbuch.app', pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
   
   // Return as buffer
   const pdfArrayBuffer = doc.output('arraybuffer');
