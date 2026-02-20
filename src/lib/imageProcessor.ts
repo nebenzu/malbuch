@@ -2,7 +2,7 @@ import { Jimp } from 'jimp';
 
 /**
  * Convert photo to coloring book page
- * Simplified: just grayscale + brightness boost to test
+ * Uses JPEG to avoid alpha channel issues in PDF
  */
 export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> {
   try {
@@ -18,13 +18,19 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
       image.resize({ w: Math.round(width * scale), h: Math.round(height * scale) });
     }
     
-    // Just grayscale - simplest possible transformation
+    // Convert to grayscale
     image.greyscale();
     
-    // Get PNG buffer
-    const buffer = await image.getBuffer('image/png');
+    // Boost contrast to make lines more visible
+    image.contrast(0.3);
     
-    console.log(`Coloring page generated: ${buffer.length} bytes`);
+    // Invert colors so dark areas become light (for coloring)
+    image.invert();
+    
+    // Use JPEG to avoid alpha channel issues
+    const buffer = await image.getBuffer('image/jpeg');
+    
+    console.log(`Coloring page generated: ${buffer.length} bytes (JPEG)`);
     return buffer;
   } catch (error) {
     console.error('photoToColoringPage error:', error);

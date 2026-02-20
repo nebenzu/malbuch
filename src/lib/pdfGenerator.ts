@@ -60,9 +60,11 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
     doc.setTextColor(150, 150, 150);
     doc.text(`${i + 1}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
     
-    // Convert buffer to base64 data URL
+    // Convert buffer to base64 data URL (JPEG for coloring, PNG for paint-by-numbers)
     const base64Image = page.image.toString('base64');
-    const imageDataUrl = `data:image/png;base64,${base64Image}`;
+    const mimeType = page.type === 'coloring' ? 'image/jpeg' : 'image/png';
+    const formatType = page.type === 'coloring' ? 'JPEG' : 'PNG';
+    const imageDataUrl = `data:${mimeType};base64,${base64Image}`;
     
     // Add image with margins
     const margin = 15;
@@ -70,7 +72,7 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
     const imgHeight = pageHeight - margin * 2 - 20; // Leave space for color palette
     
     try {
-      doc.addImage(imageDataUrl, 'PNG', margin, margin, imgWidth, imgHeight, undefined, 'FAST');
+      doc.addImage(imageDataUrl, formatType, margin, margin, imgWidth, imgHeight, undefined, 'FAST');
     } catch (imgError) {
       console.error('Failed to add image to PDF:', imgError);
       // Add placeholder text if image fails
