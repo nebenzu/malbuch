@@ -2,7 +2,7 @@ import { Jimp } from 'jimp';
 
 /**
  * Convert photo to coloring book page
- * Simple approach: grayscale + posterize + high contrast
+ * Simplified: just grayscale + brightness boost to test
  */
 export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> {
   try {
@@ -18,14 +18,8 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
       image.resize({ w: Math.round(width * scale), h: Math.round(height * scale) });
     }
     
-    // Convert to grayscale
+    // Just grayscale - simplest possible transformation
     image.greyscale();
-    
-    // Reduce to very few tones (creates outline-like effect)
-    image.posterize(3);
-    
-    // Max out contrast to push toward black/white
-    image.contrast(1);
     
     // Get PNG buffer
     const buffer = await image.getBuffer('image/png');
