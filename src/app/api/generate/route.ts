@@ -58,16 +58,25 @@ export async function POST(request: NextRequest) {
     
     console.log(`Total pages to generate: ${pages.length}`);
 
+    console.log(`Generating PDF with ${pages.length} pages`);
+    
     const pdfBuffer = await generateBook({
       name,
       pages,
     });
 
-    // Return PDF
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    console.log(`PDF generated: ${pdfBuffer.length} bytes`);
+
+    // Sanitize filename for Content-Disposition
+    const safeName = name.replace(/[^a-zA-Z0-9]/g, '_') || 'Malbuch';
+    const filename = `${safeName}_Malbuch.pdf`;
+    
+    // Return PDF with proper headers
+    return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${name.replace(/[^a-zA-Z0-9]/g, '_')}_Malbuch.pdf"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': pdfBuffer.length.toString(),
       },
     });
   } catch (error) {

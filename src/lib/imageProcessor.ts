@@ -6,9 +6,12 @@ import { Jimp } from 'jimp';
  */
 export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> {
   try {
-    const image = await Jimp.read(imageBuffer);
+    console.log(`Input buffer: ${imageBuffer.length} bytes`);
     
-    // Resize
+    const image = await Jimp.read(imageBuffer);
+    console.log(`Image loaded: ${image.width}x${image.height}`);
+    
+    // Resize if needed
     const width = image.width;
     const height = image.height;
     const maxDim = 800;
@@ -16,21 +19,24 @@ export async function photoToColoringPage(imageBuffer: Buffer): Promise<Buffer> 
     if (width > maxDim || height > maxDim) {
       const scale = maxDim / Math.max(width, height);
       image.resize({ w: Math.round(width * scale), h: Math.round(height * scale) });
+      console.log(`Resized to: ${image.width}x${image.height}`);
     }
     
     // Convert to grayscale
     image.greyscale();
+    console.log('Applied greyscale');
     
     // Boost contrast to make lines more visible
-    image.contrast(0.3);
-    
-    // Invert colors so dark areas become light (for coloring)
-    image.invert();
+    image.contrast(0.5);
+    console.log('Applied contrast');
     
     // Use JPEG to avoid alpha channel issues
     const buffer = await image.getBuffer('image/jpeg');
     
-    console.log(`Coloring page generated: ${buffer.length} bytes (JPEG)`);
+    // Verify it's a valid JPEG
+    const isValidJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+    console.log(`Output: ${buffer.length} bytes, valid JPEG: ${isValidJpeg}`);
+    
     return buffer;
   } catch (error) {
     console.error('photoToColoringPage error:', error);

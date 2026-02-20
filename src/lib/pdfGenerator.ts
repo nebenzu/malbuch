@@ -66,6 +66,12 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
     const formatType = page.type === 'coloring' ? 'JPEG' : 'PNG';
     const imageDataUrl = `data:${mimeType};base64,${base64Image}`;
     
+    console.log(`Page ${i + 1}: type=${page.type}, format=${formatType}, imageSize=${page.image.length} bytes, base64Len=${base64Image.length}`);
+    
+    // Verify image header
+    const header = page.image.slice(0, 4);
+    console.log(`Image header bytes: ${header[0]?.toString(16)} ${header[1]?.toString(16)} ${header[2]?.toString(16)} ${header[3]?.toString(16)}`);
+    
     // Add image with margins
     const margin = 15;
     const imgWidth = pageWidth - margin * 2;
@@ -73,6 +79,7 @@ export async function generateBook(config: BookConfig): Promise<Buffer> {
     
     try {
       doc.addImage(imageDataUrl, formatType, margin, margin, imgWidth, imgHeight, undefined, 'FAST');
+      console.log(`Image added successfully to page ${i + 1}`);
     } catch (imgError) {
       console.error('Failed to add image to PDF:', imgError);
       // Add placeholder text if image fails
