@@ -60,8 +60,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Fehler beim Erstellen des Malbuchs' },
+      { error: `Fehler beim Erstellen: ${errorMessage}` },
       { status: 500 }
     );
   }
